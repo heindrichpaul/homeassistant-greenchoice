@@ -297,7 +297,7 @@ class MeterReadings:
     @staticmethod
     def from_dict(data: dict) -> MeterReadings:
         return MeterReadings(
-            productTypes=[MeterProduct.from_dict(r) for r in data.get("productTypes")],
+            productTypes=[MeterProduct.from_dict(r) for r in data],
         )
 
     @property
