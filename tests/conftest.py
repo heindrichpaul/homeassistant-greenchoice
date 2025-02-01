@@ -51,7 +51,7 @@ def meters_v2_response(data_folder):
 def meters_v2_response_without_gas(data_folder):
     with data_folder.joinpath("test_meters_v2.json").open() as f:
         response = json.load(f)
-    del response["productTypes"][1]
+    del response[1]
     return response
 
 
@@ -152,7 +152,9 @@ def mock_api(
             )
         else:
             requests_mock.get(
-                f"{BASE_URL}/api/v2/customers/2222/rates", json={"status": 404}, status_code=404
+                f"{BASE_URL}/api/v2/customers/2222/rates",
+                json={"status": 404},
+                status_code=404,
             )
 
         requests_mock.get(

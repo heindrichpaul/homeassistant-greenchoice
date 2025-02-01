@@ -95,13 +95,13 @@ class GreenchoiceApi:
 
     def get_preferences(self) -> Preferences:
         preferences_json = self._validate_response(
-            self.request("GET", f"/api/v2/Preferences/")
+            self.request("GET", "/api/v2/Preferences/")
         )
         return Preferences.from_dict(preferences_json)
 
     def get_profiles(self) -> list[Profile]:
         profiles_json = self._validate_response(
-            self.request("GET", f"/api/v2/Profiles/")
+            self.request("GET", "/api/v2/Profiles/")
         )
         return [Profile.from_dict(p) for p in profiles_json]
 
@@ -139,7 +139,6 @@ class GreenchoiceApi:
                         client_address.get("klantnummer") == customer_id
                         and client_address.get("overeenkomstId") == contract_id
                     ):
-
                         contracts = client_address.get("contracten")
                         for contract in contracts:
                             if (
@@ -152,7 +151,6 @@ class GreenchoiceApi:
         return ref_id_electricity, ref_id_gas
 
     def get_rates(self) -> Rates:
-
         profiles = self.get_profiles()
         current_profile: Profile | None = None
         for profile in profiles:

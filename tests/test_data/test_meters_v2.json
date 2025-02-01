@@ -1,5 +1,4 @@
-{
-  "productTypes": [
+[
     {
       "productType": "Stroom",
       "months": [
@@ -158,5 +157,4 @@
         }
       ]
     }
-  ]
-}
+]
