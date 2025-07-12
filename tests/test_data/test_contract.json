@@ -27,6 +27,7 @@
     "netbeheerPerDagExcBtw": 0.57,
     "netbeheerPerDagIncBtw": 0.69,
     "netbeheerPerDagBtw": 0.12,
+    "rebTeruggaveIncBtw": -111.12,
     "reb": 0.1,
     "sde": 0,
     "capaciteit": "3x25A"

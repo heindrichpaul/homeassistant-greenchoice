@@ -28,6 +28,20 @@ def contract_response_without_gas(data_folder):
 
 
 @pytest.fixture
+def contract_response_current(data_folder):
+    with data_folder.joinpath("test_contract_current.json").open() as f:
+        return json.load(f)
+
+
+@pytest.fixture
+def contract_response_current_without_gas(data_folder):
+    with data_folder.joinpath("test_contract_current.json").open() as f:
+        response = json.load(f)
+    del response["contracts"][1]
+    return response
+
+
+@pytest.fixture
 def meters_response(data_folder):
     with data_folder.joinpath("test_meters.json").open() as f:
         return json.load(f)
@@ -123,6 +137,8 @@ def mock_api(
     preferences_response,
     tariffs_v1_response,
     contract_response_callback,
+    contract_response_current,
+    contract_response_current_without_gas,
     init_response_without_gas,
     meters_response_without_gas,
     meters_v2_response_without_gas,
@@ -174,5 +190,19 @@ def mock_api(
             ),
             json=meters_v2_response if has_gas else meters_v2_response_without_gas,
         )
+
+        if has_rates:
+            requests_mock.get(
+                f"{BASE_URL}/api/v2/customers/2222/agreements/1111/contracts/current",
+                json=contract_response_current
+                if has_gas
+                else contract_response_current_without_gas,
+            )
+        else:
+            requests_mock.get(
+                f"{BASE_URL}/api/v2/customers/2222/agreements/1111/contracts/current",
+                json={"status": 404},
+                status_code=404,
+            )
 
     return _mock_api
