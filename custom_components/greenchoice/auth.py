@@ -13,6 +13,7 @@ class LoginError(Exception):
 class Auth:
     def __init__(self, base_url: str, username: str, password: str):
         self.base_url = base_url
+        self.sso_url = base_url.replace("mijn.", "sso.")
         self._username = username
         self._password = password
 
@@ -32,12 +33,11 @@ class Auth:
             return False
         return True
 
-    @staticmethod
-    def _get_verification_token(html_txt: str) -> str:
-        soup = bs4.BeautifulSoup(html_txt, "html.parser")
-        token_elem = soup.find("input", {"name": "__RequestVerificationToken"})
-
-        return token_elem.attrs.get("value")
+    def _get_antiforgery_token(self) -> str:
+        """Get the antiforgery token from the API."""
+        response = self.session.get(f"{self.sso_url}/api/antiforgery")
+        response.raise_for_status()
+        return response.json()["requestToken"]
 
     @staticmethod
     def _get_oidc_params(html_txt: str) -> dict[str, str]:
@@ -58,15 +58,15 @@ class Auth:
             "session_state": session_state_elem.attrs.get("value"),
         }
 
-    @staticmethod
-    def is_session_expired(response: requests.Response) -> bool:
+    def is_session_expired(self, response: requests.Response) -> bool:
         # If the session expired, the client is redirected to the SSO login.
         for history_response in response.history:
             if history_response.status_code != 302:
                 continue
             location_header: str = history_response.headers.get("Location")
             if location_header is not None and re.search(
-                "^.*://sso.greenchoice.nl/connect/authorize.*$", location_header
+                f"^.*://{urlparse(self.sso_url).netloc}/connect/authorize.*$",
+                location_header,
             ):
                 return True
 
@@ -83,33 +83,65 @@ class Auth:
         self.session = requests.Session()
         self.logger.info("Retrieving login cookies")
 
-        # first, get the login cookies and form data
+        # Get the antiforgery token
+        antiforgery_token = self._get_antiforgery_token()
+
+        # Get the login page to extract returnUrl
         login_page = self.session.get(self.base_url)
-
         login_url = login_page.url
-        return_url = parse_qs(urlparse(login_url).query).get("ReturnUrl", "")
-        token = self._get_verification_token(login_page.text)
+        return_url_params = parse_qs(urlparse(login_url).query)
+        return_url = return_url_params.get("ReturnUrl", [""])[0]
 
-        # perform actual sign in
+        # Perform actual sign in with new parameters
         self.logger.debug("Logging in with username and password")
         login_data = {
-            "ReturnUrl": return_url,
-            "Username": self._username,
-            "Password": self._password,
-            "__RequestVerificationToken": token,
-            "RememberLogin": True,
+            "username": self._username,
+            "password": self._password,
+            "returnUrl": return_url,
+            "rememberMe": True,
         }
-        auth_page = self.session.post(login_page.url, data=login_data)
+
+        # Set the required headers
+        headers = {
+            "requestverificationtoken": antiforgery_token,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Origin": self.sso_url,
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-origin",
+        }
+
+        # Send login request to the correct endpoint
+        login_url = f"{self.sso_url}/api/login"
+        auth_page = self.session.post(login_url, json=login_data, headers=headers)
         auth_page.raise_for_status()
 
-        # exchange oidc params for a login cookie (automatically saved in session)
+        # Handle the JSON response with redirect URI
+        login_response = auth_page.json()
+        if login_response.get("validationProblemDetails"):
+            raise LoginError(
+                f"Login validation failed: {login_response['validationProblemDetails']}"
+            )
+
+        redirect_uri = login_response.get("redirectUri")
+        if not redirect_uri:
+            raise LoginError("No redirect URI received from login")
+
+        # Follow the redirect to complete OAuth flow
+        self.logger.debug("Following OAuth redirect")
+        oauth_response = self.session.get(
+            f"{self.base_url.replace('mijn.', 'sso.')}{redirect_uri}"
+        )
+        oauth_response.raise_for_status()
+
+        # Continue with OIDC flow
         self.logger.debug("Signing in using OIDC")
-        oidc_params = self._get_oidc_params(auth_page.text)
+        oidc_params = self._get_oidc_params(oauth_response.text)
         response = self.session.post(f"{self.base_url}/signin-oidc", data=oidc_params)
         response.raise_for_status()
 
         self.logger.debug("Login success")
-
         return self.session
 
     def refresh_session(self) -> requests.Session:
