@@ -130,9 +130,7 @@ class Auth:
 
         # Follow the redirect to complete OAuth flow
         self.logger.debug("Following OAuth redirect")
-        oauth_response = self.session.get(
-            f"{self.base_url.replace('mijn.', 'sso.')}{redirect_uri}"
-        )
+        oauth_response = self.session.get(f"{self.sso_url}{redirect_uri}")
         oauth_response.raise_for_status()
 
         # Continue with OIDC flow
